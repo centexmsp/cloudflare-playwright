@@ -1,0 +1,48 @@
+# Pre-commit Hooks Configuration
+# Install: pip install pre-commit
+# Setup: pre-commit install
+
+repos:
+  # General hooks
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.5.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+      - id: check-json
+      - id: check-added-large-files
+        args: ['--maxkb=1000']
+        exclude: ^src/rust/target/
+      - id: check-merge-conflict
+      - id: detect-private-key
+
+  # Python Security (disabled - bandit has dependency issues with Python 3.14)
+  # - repo: https://github.com/PyCQA/bandit
+  #   rev: 1.7.5
+  #   hooks:
+  #     - id: bandit
+  #       args: ['-r', 'scripts/', 'src/']
+  #       exclude: ^(tests/|.*_test\.py)
+
+  # Dependency Security
+        # Safety hook commented out - repository not found
+        # - repo: https://github.com/PyCQA/safety
+        #   rev: 2.3.5
+        #   hooks:
+        #     - id: safety
+        #       args: ['--full-report']
+
+  # Secret Detection (baseline file will be created on first run)
+  # - repo: https://github.com/Yelp/detect-secrets
+  #   rev: v1.4.0
+  #   hooks:
+  #     - id: detect-secrets
+  #       args: ['--baseline', '.secrets.baseline']
+
+  # Semgrep (optional - can be slow)
+  # - repo: https://github.com/returntocorp/semgrep
+  #   rev: v1.45.0
+  #   hooks:
+  #     - id: semgrep
+  #       args: ['--config=auto']

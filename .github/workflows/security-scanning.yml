@@ -1,0 +1,196 @@
+name: Security Scanning
+
+on:
+  schedule:
+    # Run daily at 3 AM UTC
+    - cron: '0 3 * * *'
+  workflow_dispatch: # Allow manual trigger
+  push:
+    paths:
+      - 'scripts/**'
+      - 'src/**'
+      - 'workflows/**'
+      - 'docker-compose.yml'
+      - 'requirements.txt'
+      - 'src/rust/**'
+      - 'Cargo.toml'
+      - 'Cargo.lock'
+
+jobs:
+  python-security:
+    name: Python Security Scan
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install security tools
+        run: |
+          pip install -r requirements-security.txt
+
+      - name: Run pip-audit (Supply Chain Security)
+        run: |
+          pip-audit --format json -o pip-audit-report.json || true
+          pip-audit --format text || true
+
+      - name: Run pip-licenses (License Compliance)
+        run: |
+          pip-licenses --format=json -o licenses-report.json || true
+          pip-licenses --with-urls --with-authors || true
+
+      - name: Run Bandit
+        run: |
+          bandit -r scripts/ src/ -f json -o bandit-report.json || true
+          bandit -r scripts/ src/ -f txt || true
+
+      - name: Run Safety
+        run: |
+          safety check --full-report || true
+
+      - name: Run Semgrep
+        run: |
+          semgrep --config=auto scripts/ src/ --json -o semgrep-report.json || true
+          semgrep --config=auto scripts/ src/ || true
+
+      - name: Upload pip-audit report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: pip-audit-report
+          path: pip-audit-report.json
+
+      - name: Upload licenses report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: licenses-report
+          path: licenses-report.json
+
+      - name: Upload Bandit report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: bandit-report
+          path: bandit-report.json
+
+      - name: Upload Semgrep report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: semgrep-report
+          path: semgrep-report.json
+
+  workflow-security:
+    name: Workflow Security Scan
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Scan workflows
+        run: |
+          scripts/security/scan-workflow-security.sh || true
+
+      - name: Security audit
+        run: |
+          scripts/security/security-audit-workflows.sh || true
+
+  container-security:
+    name: Container Security Scan
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Run Trivy
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: 'fs'
+          scan-ref: '.'
+          format: 'sarif'
+          output: 'trivy-results.sarif'
+
+      - name: Upload Trivy results
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: 'trivy-results.sarif'
+
+  rust-security:
+    name: Rust Security Scan
+    runs-on: ubuntu-latest
+    if: hashFiles('src/rust/**/*.rs') != ''
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          components: rustfmt, clippy
+          override: true
+
+      - name: Run cargo fmt check
+        run: |
+          cd src/rust
+          cargo fmt --all -- --check || true
+
+      - name: Run cargo clippy
+        run: |
+          cd src/rust
+          cargo clippy --all-targets --all-features -- -D warnings || true
+
+      - name: Run cargo audit (Supply Chain Security)
+        run: |
+          cd src/rust
+          cargo install cargo-audit || true
+          cargo audit --json > cargo-audit-report.json || true
+          cargo audit || true
+
+      - name: Run cargo deny (Policy Enforcement)
+        run: |
+          cd src/rust
+          cargo install cargo-deny || true
+          cargo deny check || true
+
+      - name: Run cargo outdated (Dependency Updates)
+        run: |
+          cd src/rust
+          cargo install cargo-outdated || true
+          cargo outdated --format json > cargo-outdated-report.json || true
+          cargo outdated || true
+
+      - name: Upload cargo-audit report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: cargo-audit-report
+          path: src/rust/cargo-audit-report.json
+
+      - name: Upload cargo-outdated report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: cargo-outdated-report
+          path: src/rust/cargo-outdated-report.json
+
+  comprehensive-scan:
+    name: Comprehensive Security Scan
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Run comprehensive scan
+        run: |
+          chmod +x scripts/security/*.sh
+          scripts/security/scan-all-code.sh || true

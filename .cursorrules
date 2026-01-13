@@ -1,0 +1,190 @@
+# Cursor Rules for OSINT Platform
+# Enforces latest Grok reasoning model and security standards
+# Based on repository-restructuring and firewall-analysis patterns
+
+## Model Configuration
+- ALWAYS use the latest available Grok reasoning model for all AI assistance
+- Current model: grok-4-1-fast-reasoning (or latest available reasoning variant)
+- Prefer reasoning models over non-reasoning models for better code quality and solutions
+- If reasoning model unavailable, use grok-4-1-fast as fallback
+
+## Security-First Development
+
+### Core Security Principles
+- "One security mistake can give away everything" - repository-restructuring principle
+- Zero tolerance for security warnings/errors
+- All code must pass security validation before commit
+- Input/output sanitization is MANDATORY
+- Defense in depth (5 layers) - repository-restructuring standard
+
+### Security Requirements (MANDATORY)
+1. **Input Sanitization**
+   - ALL user input MUST be sanitized before processing
+   - ALL database queries MUST use parameterized statements
+   - ALL file paths MUST be validated to prevent path traversal
+   - ALL command execution MUST sanitize arguments
+   - ALL network data MUST be validated before processing
+
+2. **Output Sanitization**
+   - ALL output to logs/files MUST be sanitized to prevent injection
+   - NEVER log sensitive data (passwords, API keys, tokens)
+   - Use secure logging practices
+
+3. **Credential Management**
+   - Use SecureCredentials pattern (Python + Rust)
+   - Environment variable priority (env vars > files)
+   - File permissions: 600 for files, 700 for directories
+   - Atomic file operations
+   - NEVER commit secrets to git
+
+4. **Security Validation**
+   - Python: pip-audit must pass (no known vulnerabilities)
+   - Rust: cargo-audit must pass, cargo-deny must pass
+   - Security review required for all shared components
+   - Pre-commit hooks must pass
+
+## Code Quality Standards
+
+### Zero Tolerance Policy
+- Zero warnings/errors in code quality checks
+- All code must pass:
+  - Python: black, isort, flake8, ruff, mypy (where applicable)
+  - Rust: cargo fmt, cargo clippy (with -D warnings)
+- Pre-commit hooks must pass before commit
+
+### Testing Standards
+- Minimum 70% test coverage (80-90% for security-critical code)
+- Property-based testing with hypothesis (Python) for data validation
+- Performance benchmarking with pytest-benchmark for critical paths
+- Design by contract with icontract for security-critical functions
+
+## Documentation Standards
+
+### Consolidation & Cross-Referencing
+- ALL documentation must be consolidated by component/subject
+- ALL documentation must be cross-referenced
+- Keep documentation updated and synchronized
+- Use master indexes (DOCUMENTATION_INDEX.md, SECURITY_INDEX.md)
+
+### Documentation Structure
+- By subject/component organization
+- Cross-references in all related docs
+- Single source of truth principle
+- Automated validation where possible
+
+## Development Patterns
+
+### Follow Repository Standards
+- **firewall-analysis**: Rust security patterns, testing standards
+- **repository-restructuring**: Security-first, zero warnings, 80-90% coverage for security-critical
+- **claude-ai-orchestration**: Security classification, comprehensive scanning
+
+### Code Reuse
+- Prefer Rust-based code when possible
+- Use established patterns from other private repos
+- Follow standards from STANDARDS_AND_PATTERNS.md
+
+### Python Standardization
+- Use Python equivalents of Rust tools:
+  - pytest-benchmark (criterion equivalent)
+  - icontract (contracts equivalent)
+  - ruff (cargo clippy equivalent)
+  - pip-audit (cargo audit equivalent)
+  - pip-licenses (cargo deny equivalent)
+  - hypothesis (proptest equivalent)
+
+## Git & Repository Management
+
+### Commit Standards
+- Keep git repository updated
+- All changes must be committed
+- Meaningful commit messages
+- Pre-commit hooks must pass
+
+### Documentation Updates
+- Update documentation when making changes
+- Cross-reference new documentation
+- Keep documentation index updated
+
+## Supply Chain Security (Upcoming)
+
+### Python (pip)
+- Use pip-audit for vulnerability scanning
+- Use pip-licenses for license compliance
+- Use pip-review for dependency updates
+- Pin dependency versions in requirements files
+
+### Rust (cargo)
+- Use cargo-audit for vulnerability scanning
+- Use cargo-deny for policy enforcement
+- Use cargo-outdated for dependency updates
+- Pin dependency versions in Cargo.toml
+
+## Workflow Standards
+
+### n8n Workflows
+- Use grok-4-1-fast-reasoning model in all XAI API calls
+- Follow workflow patterns from workflows/ directory
+- Maintain security in all workflow nodes
+
+### API Integration
+- Use SecureCredentials for all API keys
+- Validate all API responses
+- Implement proper error handling
+- Rate limiting where applicable
+
+## Error Handling
+
+### Security-Critical Errors
+- NEVER expose sensitive information in error messages
+- Log errors securely
+- Implement proper error recovery
+- Fail securely (deny by default)
+
+## Code Review Checklist
+
+Before committing, verify:
+- [ ] All security requirements met
+- [ ] Input/output sanitization implemented
+- [ ] Credentials handled securely
+- [ ] Tests pass (70%+ coverage)
+- [ ] Code quality checks pass (zero warnings)
+- [ ] Documentation updated and cross-referenced
+- [ ] Pre-commit hooks pass
+- [ ] Security scanning passes (pip-audit, cargo-audit)
+
+## AI Assistance Guidelines
+
+### When Using AI (Cursor/Grok)
+- Always use latest reasoning model for better solutions
+- Verify all AI-generated code passes security checks
+- Review AI suggestions for security implications
+- Test AI-generated code thoroughly
+- Never accept AI suggestions that bypass security
+
+### Code Generation
+- Follow established patterns from other repos
+- Use SecureCredentials pattern for credentials
+- Implement proper error handling
+- Add tests for new code
+- Update documentation
+
+## Project-Specific Rules
+
+### OSINT Platform
+- All OSINT data collection must comply with legal/ethical guidelines
+- See LEGAL_ETHICAL.md for requirements
+- Use only publicly available information
+- Respect platform terms of service
+- Coordinate with law enforcement when appropriate
+
+### Model Configuration
+- Workflows: Use grok-4-1-fast-reasoning for XAI API
+- Cursor AI: Use latest available Grok reasoning model
+- Always prefer reasoning models for better code quality
+
+---
+
+**Last Updated**: 2026-01-12
+**Standards Source**: repository-restructuring, firewall-analysis, claude-ai-orchestration
+**See**: docs/development/STANDARDS_AND_PATTERNS.md for complete standards

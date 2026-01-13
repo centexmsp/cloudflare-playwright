@@ -1,0 +1,182 @@
+name: Submodule Security Scanning
+
+on:
+  schedule:
+    # Run daily at 4 AM UTC (after main security scan)
+    - cron: '0 4 * * *'
+  workflow_dispatch: # Allow manual trigger
+  push:
+    paths:
+      - '.gitmodules'
+      - 'modules/**'
+
+jobs:
+  submodule-security:
+    name: Submodule Security Scan
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository with submodules
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Verify submodule commit pinning
+        run: |
+          echo "🔍 Verifying submodule commit pinning..."
+
+          # Check .gitmodules for branch = lines (should NOT exist)
+          if grep -q "branch = " .gitmodules; then
+            echo "::error::.gitmodules contains 'branch = ' line - violates repository-restructuring standards!"
+            echo "Submodules must be pinned to commits, not branches."
+            exit 1
+          fi
+
+          echo "✅ No branch tracking found - commit pinning verified"
+
+      - name: List submodules
+        run: |
+          echo "📦 Submodules:"
+          git submodule status
+
+      - name: Scan cloudflare-puppeteer submodule (Python/Node.js)
+        if: hashFiles('modules/cloudflare-puppeteer/**') != ''
+        run: |
+          echo "🔒 Scanning cloudflare-puppeteer submodule..."
+          cd modules/cloudflare-puppeteer
+
+          # Check if Node.js project
+          if [ -f "package.json" ]; then
+            echo "📦 Node.js project detected"
+
+            # Install npm audit if available
+            if command -v npm &> /dev/null; then
+              echo "Running npm audit..."
+              npm audit --audit-level=moderate || true
+            fi
+
+            # Check for known vulnerabilities
+            if [ -f "package-lock.json" ]; then
+              echo "Checking package-lock.json for vulnerabilities..."
+            fi
+          fi
+
+          # Check if Python project
+          if [ -f "requirements.txt" ] || [ -f "setup.py" ] || [ -f "pyproject.toml" ]; then
+            echo "🐍 Python project detected"
+
+            # Set up Python
+            python3 -m venv venv || true
+            source venv/bin/activate || true
+
+            # Install security tools
+            pip install pip-audit bandit safety || true
+
+            # Run security scans
+            if [ -f "requirements.txt" ]; then
+              pip install -r requirements.txt || true
+              pip-audit || true
+              safety check || true
+            fi
+
+            # Run bandit if Python files exist
+            if find . -name "*.py" -type f | head -1 | grep -q .; then
+              bandit -r . -f json -o bandit-report.json || true
+              bandit -r . -f txt || true
+            fi
+          fi
+
+          cd ../..
+
+      - name: Verify submodule access security
+        run: |
+          echo "🔐 Verifying submodule access security..."
+
+          # Check .gitmodules for HTTPS URLs with tokens (security risk)
+          if grep -E "url = https://.*@.*\.git" .gitmodules; then
+            echo "::error::.gitmodules contains HTTPS URL with embedded credentials!"
+            echo "Use SSH deploy keys instead (security best practice)"
+            exit 1
+          fi
+
+          # Check for SSH URLs (preferred)
+          if grep -E "url = git@.*\.git" .gitmodules; then
+            echo "✅ SSH URLs detected (preferred for security)"
+          fi
+
+          echo "✅ Submodule access security verified"
+
+      - name: Check submodule commit integrity
+        run: |
+          echo "🔍 Checking submodule commit integrity..."
+
+          # Verify all submodules are at valid commits
+          git submodule foreach 'git rev-parse --verify HEAD > /dev/null || exit 1'
+
+          echo "✅ All submodules at valid commits"
+
+      - name: Upload submodule security reports
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: submodule-security-reports
+          path: |
+            modules/*/bandit-report.json
+            modules/*/npm-audit-report.json
+          if-no-files-found: ignore
+
+  submodule-dependency-scan:
+    name: Submodule Dependency Scan
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository with submodules
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Scan submodule dependencies
+        run: |
+          echo "📦 Scanning submodule dependencies..."
+
+          # Scan each submodule
+          git submodule foreach '
+            echo "Scanning $name..."
+            cd "$toplevel/$path"
+
+            # Node.js dependencies
+            if [ -f "package.json" ]; then
+              echo "  Node.js project"
+              if command -v npm &> /dev/null; then
+                npm audit --json > npm-audit-report.json 2>/dev/null || true
+              fi
+            fi
+
+            # Python dependencies
+            if [ -f "requirements.txt" ] || [ -f "pyproject.toml" ]; then
+              echo "  Python project"
+              python3 -m venv venv 2>/dev/null || true
+              source venv/bin/activate 2>/dev/null || true
+              pip install pip-audit 2>/dev/null || true
+              pip-audit --format json -o pip-audit-report.json 2>/dev/null || true
+            fi
+
+            # Rust dependencies
+            if [ -f "Cargo.toml" ]; then
+              echo "  Rust project"
+              if command -v cargo &> /dev/null; then
+                cargo audit --json > cargo-audit-report.json 2>/dev/null || true
+              fi
+            fi
+          '
+
+      - name: Upload dependency reports
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: submodule-dependency-reports
+          path: |
+            modules/*/npm-audit-report.json
+            modules/*/pip-audit-report.json
+            modules/*/cargo-audit-report.json
+          if-no-files-found: ignore

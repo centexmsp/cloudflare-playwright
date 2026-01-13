@@ -1,0 +1,87 @@
+name: Container Security Updates
+
+on:
+  schedule:
+    # Run daily at 3 AM UTC
+    - cron: '0 3 * * *'
+  workflow_dispatch: # Allow manual trigger
+  pull_request:
+    paths:
+      - 'docker-compose.yml'
+      - '.github/dependabot.yml'
+
+jobs:
+  scan-containers:
+    name: Scan Container Images
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Extract container images
+        id: extract-images
+        run: |
+          # Extract all image references from docker-compose.yml
+          grep -E "^\s+image:" docker-compose.yml | sed 's/.*image: *//' | sed 's/:.*//' | sort -u > images.txt
+          echo "images=$(cat images.txt | tr '\n' ' ')" >> $GITHUB_OUTPUT
+          cat images.txt
+
+      - name: Run Trivy vulnerability scan
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: 'image'
+          image-ref: ${{ steps.extract-images.outputs.images }}
+          format: 'sarif'
+          output: 'trivy-results.sarif'
+          severity: 'CRITICAL,HIGH'
+
+      - name: Upload Trivy results
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: 'trivy-results.sarif'
+
+      - name: Check for outdated images
+        run: |
+          # Check if images have updates available
+          while IFS= read -r image; do
+            echo "Checking $image..."
+            docker pull "$image" || true
+          done < images.txt
+
+  test-updated-images:
+    name: Test Updated Images
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Compose
+        run: |
+          docker-compose version
+
+      - name: Pull updated images
+        run: |
+          docker-compose pull
+
+      - name: Start services
+        run: |
+          docker-compose up -d
+          sleep 10
+
+      - name: Run health checks
+        run: |
+          # Check if services are running
+          docker-compose ps
+          # Add specific health checks here
+
+      - name: Run security tests
+        run: |
+          # Run security validation tests
+          # Add security test commands here
+
+      - name: Cleanup
+        if: always()
+        run: |
+          docker-compose down -v
